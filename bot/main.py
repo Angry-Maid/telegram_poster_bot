@@ -18,12 +18,9 @@ bot = telepot.aio.Bot(config.bot_token)
 interval = 60 * 60  # e.g. 1 hour
 current_time = datetime.datetime.now().time()
 channels = []
+ids = []
 post_file = "post.txt"
 config.load_admins()
-
-# TODO: check for updates (when bot was added to any channel)
-# TODO: "https://api.telegram.org/bot" + config.bot_token + "/getUpdates"
-# TODO: parse -> dict['chat']['id']
 
 
 def set_interval(_interval):
@@ -43,29 +40,29 @@ async def get_new_post():
             #  rewrite
 
 
-async def get_new_channel():
+async def get_new_channel(_id):
     global channels
-
-    request = "https://api.telegram.org/bot" + config.bot_token + "/getUpdates"
-    res = urlopen(request).readall().decode().json()
-    try:
-        print(res['new_chat_participant']) # if bot was actually added and not deleted from chat
-    except Exception:
-        _id = None
-    else:
-        _id = int(res['chat']['id'])
-
     channels.append(_id)
 
 
-async def post_on_channels(_content):
-    for channel in channels: # add a check: if a channel value is None then we pass else we sendMessage
-        bot.sendMessage(channel, _content)
+async def post_on_channels():
+    with open(post_file, "r") as read_cache:
+        content = read_cache.read()
+        for channel in channels:
+            bot.sendMessage(channel, content)
     await asyncio.sleep(interval)
 
 
-def post(_chat_id, _content, _interval):
+def post(_content = None):
+    if _content is None:
 
+    else:
+        cont = ''
+        for word in _content:
+            cont += word + " "
+        cont = cont[:-1]
+        for user_id in ids:
+            bot.sendMessage(user_id, cont)
 
 
 def handle(msg):
@@ -85,16 +82,28 @@ def handle(msg):
                     set_interval(_interval * 60)
                 elif cmd[2] == 'h':
                     set_interval(_interval * 60 * 60)
+            elif cmd[0] == 'post' and len(cmd) == 1:
+                post()  # send text(text itself without chat command)
             elif cmd[0] == 'post' and len(cmd) >= 2:
-                post_on_channels(cmd[1:])  # send text(text itself without chat command)
+                post(cmd[1:])
+            elif cmd[0] == 'add_channel' and len(cmd) == 2:
+                get_new_channel(cmd[1])
+    else:
+        if "/" in command:
+
+            cmd = command.replace('/', '').split()
+
+            if cmd[0] == 'start':
+                with open("user_id.txt", "a+") as write_cache:
+                    write_cache.write(str(user_id) + "\n")
+                    ids.append(user_id)
 
 
 def main():
     loop = asyncio.get_event_loop()
 
     loop.create_task(bot.message_loop(handle))
-    loop.create_task(get_new_channel())
-    loop.create_task(get_new_post())
+    loop.create_task(post_on_channels)
 
     loop.run_forever()
 
