@@ -18,9 +18,9 @@ bot = telepot.aio.Bot(config.bot_token)
 interval = 60 * 60  # e.g. 1 hour
 current_time = datetime.datetime.now().time()
 channels = []
-ids = []
+ids = config.load_ids()
 post_file = "post.txt"
-config.load_admins()
+admin_list = config.load_admins()
 
 
 def set_interval(_interval):
@@ -46,31 +46,34 @@ async def get_new_channel(_id):
 
 
 async def post_on_channels():
-    with open(post_file, "r") as read_cache:
-        content = read_cache.read()
-        for channel in channels:
-            bot.sendMessage(channel, content)
-    await asyncio.sleep(interval)
+    while True:
+        with open(post_file, "r") as read_cache:
+            content = read_cache.read()
+            for channel in channels:
+                bot.sendMessage(channel, content)
+        await asyncio.sleep(interval)
 
 
-def post(_content = None):
+def post(_content=None):
     if _content is None:
-
+        with open(post_file, "r") as read_cache:
+            content = read_cache.read()
+            for user_id in ids:
+                bot.sendMessage(user_id, content)
     else:
-        cont = ''
-        for word in _content:
-            cont += word + " "
-        cont = cont[:-1]
+        content = ' '.join(_content)
         for user_id in ids:
-            bot.sendMessage(user_id, cont)
+            bot.sendMessage(user_id, content)
 
 
 def handle(msg):
     user_id = msg['from']['id']
     command = msg['text']
 
-    if user_id in config.admin_list:
-        if "/" in command:
+    command = command.replace(config.bot_username, '')
+
+    if user_id in admin_list:
+        if "/" == command[0]:
 
             cmd = command.replace('/', '').split()
 
@@ -89,7 +92,7 @@ def handle(msg):
             elif cmd[0] == 'add_channel' and len(cmd) == 2:
                 get_new_channel(cmd[1])
     else:
-        if "/" in command:
+        if "/" == command[0]:
 
             cmd = command.replace('/', '').split()
 
