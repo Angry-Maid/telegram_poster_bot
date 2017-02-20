@@ -11,8 +11,6 @@ def load_admins():
     if os.path.isfile("admins.cfg"):
         with open("admins.cfg", "r") as admins:
             for admin in admins:
-                if "#" in admin:
-                    continue
                 admin_list.append(int(admin))
         return admin_list
     else:
@@ -26,8 +24,6 @@ def load_ids():
     if os.path.isfile("user_id.txt"):
         with open("user_id.txt", "r") as users:
             for user in users:
-                if "#" in user:
-                    continue
                 ids.append(int(user))
         return ids
     else:
