@@ -11,7 +11,6 @@ import config
 import telepot
 import telepot.aio
 import asyncio
-import json
 
 
 bot = telepot.aio.Bot(config.bot_token)
@@ -21,6 +20,8 @@ channels = []
 ids = config.load_ids()
 post_file = "post.txt"
 admin_list = config.load_admins()
+last_post = {"title": "", "content": ""}
+current_post = {"title": "", "content": ""}
 
 
 def set_interval(_interval):
@@ -32,6 +33,7 @@ async def get_new_post():
     if not os.path.isfile(post_file):
         with open(post_file, "w+") as write_cache:
             content = feedparser.parse(config.feed_url)
+
             #  parse feed and write first post to file
     else:
         with open(post_file, "w+") as r_w_cache:
@@ -40,9 +42,14 @@ async def get_new_post():
             #  rewrite
 
 
-async def get_new_channel(_id):
+def get_new_channel(_id):
     global channels
     channels.append(_id)
+
+
+"""
+Runs in loop just to send post from feed on channel with interval
+"""
 
 
 async def post_on_channels():
@@ -52,6 +59,12 @@ async def post_on_channels():
             for channel in channels:
                 bot.sendMessage(channel, content)
         await asyncio.sleep(interval)
+
+
+"""
+Sends post to all users who subscribed to bot
+If it's called without argument's it will post from parsed feed
+"""
 
 
 def post(_content=None):
@@ -86,11 +99,11 @@ def handle(msg):
                 elif cmd[2] == 'h':
                     set_interval(_interval * 60 * 60)
             elif cmd[0] == 'post' and len(cmd) == 1:
-                post()  # send text(text itself without chat command)
+                post()  # sends post from file
             elif cmd[0] == 'post' and len(cmd) >= 2:
-                post(cmd[1:])
+                post(cmd[1:])  # sends post with content
             elif cmd[0] == 'add_channel' and len(cmd) == 2:
-                get_new_channel(cmd[1])
+                get_new_channel(int(cmd[1]))
     else:
         if "/" == command[0]:
 
@@ -106,7 +119,8 @@ def main():
     loop = asyncio.get_event_loop()
 
     loop.create_task(bot.message_loop(handle))
-    loop.create_task(post_on_channels)
+    loop.create_task(post_on_channels())
+    loop.create_task(get_new_post())
 
     loop.run_forever()
 
