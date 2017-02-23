@@ -1,0 +1,2 @@
+include *requirements3.txt
+recursive-include telegram_poster_bot *

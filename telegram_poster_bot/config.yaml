@@ -1,0 +1,7 @@
+---
+BOT_TOKEN: "341690784:AAERdk8jGaHPxUeshaUlRrqOZWWgI7odb-w"
+BOT_USERNAME: "PythonLazyBot"
+
+FEEDS_INTERVAL: 5
+FEEDS:
+  - "https://news.yandex.by/index.rss"
