@@ -11,11 +11,19 @@ def load_admins():
     if os.path.isfile("admins.cfg"):
         with open("admins.cfg", "r") as admins:
             for admin in admins:
-                admin_list.update({int(admin): [False, False, False, False]})
+                to_write = admin.split(" ")
+                admin_list.update(
+                    {
+                        int(to_write[0]): {
+                            "bools": [False, False, False, False, False],
+                            "name": to_write[1].strip()
+                        }
+                    }
+                )
         return admin_list
     else:
         with open("admins.cfg", "w+") as admins:
-            print("Please add admin ID's to the admins.cfg file")
+            print("Please add admin ID's and name (id name) to the admins.cfg file")
             raise FileExistsError
 
 
