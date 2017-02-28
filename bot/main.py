@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from telepot.namedtuple import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 import re
 import csv
