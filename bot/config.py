@@ -1,9 +1,10 @@
+# -*- coding: utf-8 -*-
+
 import os
 
 
 bot_token = ""  # botfather api key
 bot_username = "@"  # ur bot username
-feed_url = ""
 
 
 def load_admins():
@@ -49,3 +50,14 @@ def load_channels():
     else:
         with open("channels.txt", "w+") as ids:
             return []
+
+
+def load_feeds():
+    feeds = []
+    if os.path.isfile("feeds.txt"):
+        with open("feeds.txt", "r") as feeds_f:
+            for feed in feeds_f:
+                feeds.append(feed)
+        return feeds
+    else:
+        return []
