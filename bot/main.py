@@ -1,16 +1,18 @@
 # -*- coding: utf-8 -*-
 
-from telepot.namedtuple import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-import re
+import asyncio
 import csv
+import datetime
 import html
 import queue
-import config
-import asyncio
-import telepot
-import datetime
+import re
+
 import feedparser
+import telepot
 import telepot.aio
+from telepot.namedtuple import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+
+import config
 
 
 feed_queue = queue.Queue()
@@ -39,6 +41,7 @@ keyboard_commands_list = [
 channels = config.load_channels()
 subscribed_users = config.load_ids()
 admins_dict = config.load_admins()
+feeds_list = config.load_feeds()
 
 
 def set_interval(_interval):
@@ -58,22 +61,22 @@ async def get_new_post():
     }
     while True:
         print("Reading feed...")
-        feed = feedparser.parse(config.feed_url)
-        if rss_entry['title'] != feed.entries[0].title:
-            rss_entry['title'] = feed.entries[0].title
-            rss_entry['content'] = html.unescape(feed.entries[0].description)
-            to_post['title'] = feed.entries[0].title
-            to_post['content'] = html.unescape(feed.entries[0].description)
-            with open("posts.csv", "a") as csv_file:
-                fields = ["title", "content"]
-                writer = csv.DictWriter(csv_file, fieldnames=fields, quotechar="|", delimiter=' ')
-
-                writer.writeheader()
-                writer.writerow(rss_entry)
-            print("Done reading feed.")
-            feed_queue.put(rss_entry)
-        else:
-            print("RSS wasn't updated yet on server side")
+        for feed_url in feeds_list:
+            feed = feedparser.parse(feed_url)
+            if rss_entry['title'] != feed.entries[0].title:
+                rss_entry['title'] = feed.entries[0].title
+                rss_entry['content'] = html.unescape(feed.entries[0].description)
+                to_post['title'] = feed.entries[0].title
+                to_post['content'] = html.unescape(feed.entries[0].description)
+                with open("posts.csv", "a") as csv_file:
+                    fields = ["title", "content"]
+                    writer = csv.DictWriter(csv_file, fieldnames=fields, quotechar="|", delimiter=' ')
+                    writer.writeheader()
+                    writer.writerow(rss_entry)
+                feed_queue.put(rss_entry)
+            else:
+                print("RSS {} wasn't updated yet on server side".format(feed_url))
+        print("Done reading feed.")
         await asyncio.sleep(check_rate)  # e.g. wait 10 minutes(by standard) and check for new post
 
 
@@ -189,24 +192,15 @@ async def handle(msg):
     print("Command:", command)
 
     is_command = True
-    is_exists = False
 
-    try:
-        if chat_id in admins_dict:
-            if msg['forward_from_chat']['id'] not in channels:
-                channels.append(msg['forward_from_chat']['id'])
-            else:
-                is_exists = True
-    except KeyError:
-        pass
-    else:
-        if chat_id in admins_dict:
-            is_command = False
-            if not is_exists:
-                await bot.sendMessage(chat_id, "Канал добавлен в список")
-                print(msg['forward_from_chat']['id'])
-            else:
-                await bot.sendMessage(chat_id, "Канал уже есть в списке")
+    if chat_id in admins_dict and 'forward_from_chat' in msg:
+        is_command = False
+        if msg['forward_from_chat']['id'] not in channels:
+            channels.append(msg['forward_from_chat']['id'])
+            await bot.sendMessage(chat_id, "Канал добавлен в список")
+            print("Added channel:", msg['forward_from_chat']['id'])
+        else:
+            await bot.sendMessage(chat_id, "Канал уже есть в списке")
 
     if chat_type == "private" and content_type == "text" and is_command:
 
@@ -247,12 +241,11 @@ async def handle(msg):
                     """
                 )
 
-            elif admins_dict[chat_id]["bools"][0] and ' '.join(cmd) not in keyboard_commands_list:
+            elif admins_dict[chat_id]["bools"][0] and command not in keyboard_commands_list:
                     await post(cmd)
                     admins_dict[chat_id]["bools"][0] = False
-            elif admins_dict[chat_id]["bools"][1] and ' '.join(cmd) not in keyboard_commands_list:
-                is_match = ' '.join(cmd)
-                if re.match(r"\d+ [hms]", is_match):
+            elif admins_dict[chat_id]["bools"][1] and command not in keyboard_commands_list:
+                if re.match(r"\d+ [hms]", command):
                     _interval = int(cmd[0])
                     if cmd[1] == 's':
                         set_interval(_interval)
@@ -263,9 +256,8 @@ async def handle(msg):
                     admins_dict[chat_id]["bools"][1] = False
                 else:
                     await bot.sendMessage(chat_id, "Пожалуйста, введите правильно время в формате: [время (h|m|s)]")
-            elif admins_dict[chat_id]["bools"][2] and ' '.join(cmd) not in keyboard_commands_list:
-                is_match = ' '.join(cmd)
-                if re.match(r"\d+ [hms]", is_match):
+            elif admins_dict[chat_id]["bools"][2] and command not in keyboard_commands_list:
+                if re.match(r"\d+ [hms]", command):
                     _check_rate = int(cmd[0])
                     if cmd[1] == 's':
                         set_check_rate(_check_rate)
@@ -276,7 +268,7 @@ async def handle(msg):
                     admins_dict[chat_id]["bools"][2] = False
                 else:
                     await bot.sendMessage(chat_id, "Пожалуйста, введите правильно время в формате: [время (h|m|s)]")
-            elif admins_dict[chat_id]["bools"][3] and ' '.join(cmd) not in keyboard_commands_list:
+            elif admins_dict[chat_id]["bools"][3] and command not in keyboard_commands_list:
                 if len(cmd) == 2:
                     admins_dict.update(
                         {
@@ -290,7 +282,7 @@ async def handle(msg):
                     await bot.sendMessage(chat_id, "Администратор успешно добавлен")
                 else:
                     await bot.sendMessage(chat_id, "Имя администратора должно быть одним словом. Пожалуйста введите ещё раз")
-            elif admins_dict[chat_id]["bools"][4] and ' '.join(cmd) not in keyboard_commands_list:
+            elif admins_dict[chat_id]["bools"][4] and command not in keyboard_commands_list:
                 key_ = None
                 for key, value in admins_dict.items():
                     if cmd[0] == value["name"]:
@@ -305,14 +297,14 @@ async def handle(msg):
                             admins_file.write(str(key) + " " + value["name"] + "\n")
                     admins_dict[chat_id]["bools"][4] = False
                     await bot.sendMessage(chat_id, "Администратор успешно удалён")
-            elif ' '.join(cmd) == 'Послать пост':
+            elif command == 'Послать пост':
                 await post()
-            elif ' '.join(cmd) == 'Послать текст подписчикам':
+            elif command == 'Послать текст подписчикам':
                 for i in range(len(admins_dict[chat_id]["bools"])):
                     admins_dict[chat_id]["bools"][i] = False
                 admins_dict[chat_id]["bools"][0] = True
                 await bot.sendMessage(chat_id, "Пожалуйста, напишите текст")
-            elif ' '.join(cmd) == 'Установить интервал':
+            elif command == 'Установить интервал':
                 for i in range(len(admins_dict[chat_id]["bools"])):
                     admins_dict[chat_id]["bools"][i] = False
                 admins_dict[chat_id]["bools"][1] = True
@@ -324,7 +316,7 @@ async def handle(msg):
                                       )
                 await bot.sendMessage(chat_id,
                                       "Пожалуйста, укажите время в формате [время (h|m|s)] (например \"1 h\" или \"35 m\")")
-            elif ' '.join(cmd) == 'Установить таймер проверки rss':
+            elif command == 'Установить таймер проверки rss':
                 for i in range(len(admins_dict[chat_id]["bools"])):
                     admins_dict[chat_id]["bools"][i] = False
                 admins_dict[chat_id]["bools"][2] = True
@@ -336,17 +328,17 @@ async def handle(msg):
                                       )
                 await bot.sendMessage(chat_id,
                                       "Пожалуйста, укажите время в формате [время (h|m|s)] (например \"1 h\" или \"35 m\")")
-            elif ' '.join(cmd) == 'Добавить администратора':
+            elif command == 'Добавить администратора':
                 for i in range(len(admins_dict[chat_id]["bools"])):
                     admins_dict[chat_id]["bools"][i] = False
                 admins_dict[chat_id]["bools"][3] = True
                 await bot.sendMessage(chat_id, "Пожалуйста, укажите id и запишите его имя (id имя) администратора которого нужно добавить в список")
-            elif ' '.join(cmd) == 'Удалить администратора':
+            elif command == 'Удалить администратора':
                 for i in range(len(admins_dict[chat_id]["bools"])):
                     admins_dict[chat_id]["bools"][i] = False
                 admins_dict[chat_id]["bools"][4] = True
                 await bot.sendMessage(chat_id, "Пожалуйста, укажите имя администратора котого нужно удалить")
-            elif ' '.join(cmd) == 'Показать интервалы':
+            elif command == 'Показать интервалы':
                 await bot.sendMessage(chat_id,
                                       "Текущий интервал: {:.2f} секунд, {:.2f} минут, {:.2f} часов".format(
                                           float(interval),
@@ -359,18 +351,18 @@ async def handle(msg):
                                           float(check_rate) / 60,
                                           (float(check_rate) / 60) / 60)
                                       )
-            elif ' '.join(cmd) == 'Показать администраторов':
+            elif command == 'Показать администраторов':
                 list_ = ""
                 for key, value in admins_dict.items():
                     list_ += value["name"] + " - " + str(key) + "\n"
                 await bot.sendMessage(chat_id, list_)
-            elif ' '.join(cmd) == 'Сохранить текущие параметры':
+            elif command == 'Сохранить текущие параметры':
                 button_save()
                 await bot.sendMessage(chat_id, "Данные успешно сохранены")
-            elif ' '.join(cmd) == 'Перезагрузить конфиг':
+            elif command == 'Перезагрузить конфиг':
                 save_reload()
                 await bot.sendMessage(chat_id, "Данные успешно загружены")
-            elif ' '.join(cmd) == 'Закрыть клавиатуру':
+            elif command == 'Закрыть клавиатуру':
                 await bot.sendMessage(chat_id, "Хорошо", reply_markup=ReplyKeyboardRemove(remove_keyboard=True))
 
         elif cmd[0] == "/sub":
